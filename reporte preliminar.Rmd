@@ -1,0 +1,153 @@
+---
+title: "Hemorrhoidectomy"
+output: html_document
+date: '2022-03-27'
+---
+```{r clean, include=FALSE}
+rm(list=ls())
+```
+
+```{r librerias, include=FALSE}
+ifelse(!require("stargazer"), install.packages("stargazer"),library("stargazer"))
+ifelse(!require("kableExtra"), install.packages("kableExtra"),library("kableExtra"))
+ifelse(!require("ggplot2"), install.packages("ggplot2"),library("ggplot2"))
+ifelse(!require("dplyr"), install.packages("dplyr"),library("dplyr"))
+ifelse(!require("tidyr"), install.packages("tidyr"),library("tidyr"))
+ifelse(!require("usethis"), install.packages("usethis"),library("usethis"))
+ifelse(!require("readxl"), install.packages("readxl"),library("readxl"))
+ifelse(!require("tidyverse"), install.packages("tidyverse"),library("tidyverse"))
+ifelse(!require("ggpubr"), install.packages("ggpubr"),library("ggpubr"))
+ifelse(!require("rstatix"), install.packages("rstatix"),library("rstatix"))
+usethis::use_git_config(user.name = "JoseRTM",user.email = "jose.ruiztaglem@gmail.com")
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r data, include=FALSE}
+data_wide <- read_excel("hemorroid.xlsx")
+```
+
+```{r reshape, include=FALSE}
+data_long <- tidyr::pivot_longer(data_wide, c(-id,-treatment,-sex,-age), names_pattern = '(^.*)_', names_to = ".value") 
+data_long <- data_long %>%
+  arrange(id) %>%
+  group_by(id) %>%
+  mutate(time = 1:14)
+```
+
+```{r head, echo=FALSE}
+head(data_long, 10)
+```
+## Summary statistics
+
+### Sangrado
+```{r sangrado, echo=FALSE}
+data_long %>%
+  na.omit() %>%
+  group_by(bleed,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+ 
+```
+El 50% del grupo 2 no sangró, la mayor proporcion de sangrado en gotas es del grupo 1 (46%).
+
+### Sexo
+
+```{r sex, echo=FALSE}
+data_long %>%
+  na.omit() %>%
+  group_by(sex,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+ 
+```
+
+Se puede ver que los grupos están desbalanceados en cuanto a sexo, sobretodo el grupo 2.
+
+### Secreciones
+
+```{r secretion, echo=FALSE}
+data_long %>%
+  na.omit() %>%
+  group_by(secretion,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+ 
+```
+El grupo 2 muestra la mayor proporcion de 0 secreciones (15%)
+
+### Numero de deposiciones
+
+```{r n_dep, echo=FALSE}
+data_long %>%
+  na.omit() %>%
+  group_by(n_dep,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+ 
+```
+El número de deposiciones no es muy informativo por si solo, sirve como variable de control para el dolor. Es posible que mientras más defequen, más le duela. Sobretodo en los primeros días. 
+
+### Escala EVA
+```{r summary, echo=FALSE, warning=FALSE,message=FALSE}
+summary(data_long$eva) #Hay un valor de 23, eso no puede ser porque la escala llega hasta 10
+ggplot(data_long, aes(eva))+
+  geom_histogram()
+table(data_long$eva)
+data_long %>%
+  filter(eva>10)
+```
+El sujeto 24, en el tiempo 12 tiene un registro de 23. **REVISAR** 
+De momento vamos a dejar fuera esa observacion
+
+## Gráfico
+
+```{r pressure, echo=FALSE,warning=FALSE,message=FALSE}
+data_long %>%
+  filter(eva <= 10) %>%
+  group_by(time,treatment) %>%
+  summarise(mean_eva = mean(eva)) %>%
+  ggplot(.,aes(x = time,y = mean_eva))+
+  geom_line()+
+  facet_wrap(~treatment)
+
+```
+
+Los grupos tienen comportamiento similares, es necesario explorar un poco más.
+
+```{r boxplot, echo=FALSE}
+data_long %>%
+  group_by(treatment,time) %>%
+  get_summary_stats(eva, type = "median")
+ggboxplot(data_long, x = "treatment", y = "eva",add = "point")
+```
+
+```{r, echo=FALSE}
+data_long %>%
+  group_by(treatment) %>%
+  get_summary_stats(age, type = "mean_sd")
+ggboxplot(data_long, x = "treatment", y = "age", add = "point")
+
+data_long %>%
+  group_by(treatment) %>%
+  shapiro_test(age)
+
+ggqqplot(data_long, "age", facet.by = "treatment")
+summary(aov(age~as.factor(treatment), data = data_long))
+```
+
+Assumptions of spherecity and normality are not satisfied. Thus, we have to find non parametric methods to test the difference of baseline variables between groups. One alternative is to perform a Friedman test, but requires a compound symmetry sructure of the covariance matrix. This is extremely questionable for data in time courses.
+
+Another approach is to use a nonparametric marginal model to perform a "non parametric anova for repeated measures".
+
