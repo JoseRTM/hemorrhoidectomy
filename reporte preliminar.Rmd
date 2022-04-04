@@ -31,11 +31,25 @@ data_wide <- read_excel("hemorroid.xlsx")
 ```
 
 ```{r reshape, include=FALSE}
-data_long <- tidyr::pivot_longer(data_wide, c(-id,-treatment,-sex,-age), names_pattern = '(^.*)_', names_to = ".value") 
+data_long <- tidyr::pivot_longer(data_wide, c(-id,-treatment,-sex,-age,-n_package), names_pattern = '(^.*)_', names_to = ".value") 
 data_long <- data_long %>%
   arrange(id) %>%
   group_by(id) %>%
   mutate(time = 1:14)
+
+data_long <- data_long %>%
+  mutate_at(vars("head", "dizz", "vomit","constipa","abpain","swelling","itch","rash","insomnia"), ~replace_na(., "No")) %>%
+  mutate_at(vars("head", "dizz", "vomit","constipa","abpain","swelling","itch","rash","insomnia"),
+            funs(tolower(.))) %>%
+  mutate(head = ifelse(head == "si",1,0),
+         dizz = ifelse(dizz == "si",1,0),
+         vomit = ifelse(vomit == "si",1,0),
+         constipa = ifelse(constipa == "si",1,0),
+         abpain = ifelse(abpain == "si",1,0),
+         swelling = ifelse(swelling == "si",1,0),
+         itch = ifelse(itch == "si",1,0),
+         rash = ifelse(rash == "si",1,0),
+         insomnia = ifelse(insomnia == "si",1,0))
 ```
 
 ```{r head, echo=FALSE}
@@ -150,4 +164,111 @@ summary(aov(age~as.factor(treatment), data = data_long))
 Assumptions of spherecity and normality are not satisfied. Thus, we have to find non parametric methods to test the difference of baseline variables between groups. One alternative is to perform a Friedman test, but requires a compound symmetry sructure of the covariance matrix. This is extremely questionable for data in time courses.
 
 Another approach is to use a nonparametric marginal model to perform a "non parametric anova for repeated measures".
+
+### Descriptives of side effects
+```{r, echo = FALSE}
+data_long %>%
+  group_by(head,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+```
+El 4% del grupo 1 tuvo dolor de cabeza, el 2% del grupo 2 y el 6% del grupo 3.
+```{r, echo = FALSE}
+data_long %>%
+  group_by(dizz,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+```
+El 7% del grupo 1 tuvo mareo, el 3% del grupo 2 y el 12% del grupo 3
+```{r, echo = FALSE}
+data_long %>%
+  group_by(vomit,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+```
+El 2% del grupo 1 tuvo vomito, solo 1 persona tuvo vomito en el grupo 2 y el 3% del grupo 3.
+```{r, echo = FALSE}
+data_long %>%
+  group_by(constipa,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+```
+El 7% del grupo 1 tuvo estreñimiento, el 15% del grupo 2 y el 15% del grupo 3.
+```{r, echo = FALSE}
+data_long %>%
+  group_by(abpain,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+```
+El 10% del grupo 1 tuvo dolor abdominal, el 2% del grupo 2 y el 8% del grupo 3.
+```{r, echo = FALSE}
+data_long %>%
+  group_by(swelling,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+```
+El 1% del grupo 1 tuvo hinchazón, el 2% del grupo 2 y el 9% del grupo 3.
+```{r, echo = FALSE}
+data_long %>%
+  group_by(itch,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+```
+El 1% del grupo 1 tuvo hinchazón, el 2% del grupo 2 y el 12% del grupo 3. 
+```{r, echo = FALSE}
+data_long %>%
+  group_by(rash,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+```
+El 5% del grupo 3 tuvo ronchas en la piel, 2 casos del grupo 1 y 0 del grupo 2. 
+```{r, echo = FALSE}
+data_long %>%
+  group_by(insomnia,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+```
+
+El 5% del grupo 1 tuvo insomnio, el 2% del grupo 2 y el 6% del grupo 3. 
+
+## Side effects
+
+```{r, echo = FALSE}
+data_long <- data_long %>%
+  rowwise() %>% 
+  mutate(side_eff = sum(c_across(head:insomnia))) %>%
+  mutate(side_bin = ifelse(side_eff >= 1,1,0))
+```
+
+```{r, echo = FALSE}
+data_long %>%
+  group_by(side_bin,treatment) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(treatment) %>%
+  mutate(prop = round(prop.table(n),2))
+```
+El 25% del grupo 1 tuvo al menos 1 efecto secundario en un día, el 19% del grupo 2 y el 36% del grupo 3. 
+```{r}
+ggplot(data_long, aes(x = side_eff)) + 
+  geom_histogram()
+```
 
